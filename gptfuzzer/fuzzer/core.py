@@ -13,6 +13,8 @@ from gptfuzzer.utils.template import synthesis_message
 from gptfuzzer.utils.predict import Predictor
 import warnings
 
+from copy import deepcopy
+import json
 
 class PromptNode:
     def __init__(self,
@@ -73,9 +75,15 @@ class GPTFuzzer:
                  energy: int = 1,
                  result_file: str = None,
                  generate_in_batch: bool = False,
+                 qids = None,
+                 result_dir = "results",
                  ):
 
         self.questions: 'list[str]' = questions
+        if qids is None:
+            qids = [i for i in range(len(questions))]
+        self.qids = qids
+
         self.target: LLM = target
         self.predictor = predictor
         self.prompt_nodes: 'list[PromptNode]' = [
@@ -103,7 +111,8 @@ class GPTFuzzer:
         if result_file is None:
             result_file = f'results-{time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())}.csv'
 
-        self.raw_fp = open(result_file, 'w', buffering=1)
+        self.result_dir = result_dir
+        self.raw_fp = open(result_file, 'w', buffering=1, encoding='utf-8')
         self.writter = csv.writer(self.raw_fp)
         self.writter.writerow(
             ['index', 'prompt', 'response', 'parent', 'results'])
@@ -149,7 +158,9 @@ class GPTFuzzer:
         for prompt_node in prompt_nodes:
             responses = []
             messages = []
-            for question in self.questions:
+            # qids = []
+            # questions = []
+            for qid, question in zip(self.qids, self.questions):
                 message = synthesis_message(question, prompt_node.prompt)
                 if message is None:  # The prompt is not valid
                     prompt_node.response = []
@@ -159,27 +170,54 @@ class GPTFuzzer:
                     response = self.target.generate(message)
                     responses.append(response[0] if isinstance(
                         response, list) else response)
-                else:
-                    messages.append(message)
+
+                messages.append(message)
+                # qids.append(qid)
+                # questions.append(question)
             else:
                 if self.generate_in_batch:
                     responses = self.target.generate_batch(messages)
+                prompt_node.messages = messages
                 prompt_node.response = responses
+                # prompt_node.qids = qids
+                # prompt_node.questions = questions
                 prompt_node.results = self.predictor.predict(responses)
 
     def update(self, prompt_nodes: 'list[PromptNode]'):
         self.current_iteration += 1
 
+        remains = {k: v for k, v in zip(self.qids, self.questions)}
+
         for prompt_node in prompt_nodes:
             if prompt_node.num_jailbreak > 0:
                 prompt_node.index = len(self.prompt_nodes)
                 self.prompt_nodes.append(prompt_node)
+
+                for i in range(len(prompt_node.results)):
+                    result = prompt_node.results[i]
+                    if result == 0:
+                        continue
+
+                    # jb'ed
+                    del remains[self.qids[i]]
+                    with open(f"{self.result_dir}/qid-{self.qids[i]}.json", "w") as f:
+                        json.dump({
+                            "qid": self.qids[i],
+                            "question": self.questions[i],
+                            "results": result,
+                            "message": prompt_node.messages[i],
+                            "response": prompt_node.response[i],
+                            "prompt": prompt_node.prompt,
+                        }, f, indent=2, ensure_ascii=False)
+
                 self.writter.writerow([prompt_node.index, prompt_node.prompt,
                                        prompt_node.response, prompt_node.parent.index, prompt_node.results])
 
             self.current_jailbreak += prompt_node.num_jailbreak
             self.current_query += prompt_node.num_query
             self.current_reject += prompt_node.num_reject
+
+        self.qids, self.questions = list(zip(*list(remains.items())))
 
         self.select_policy.update(prompt_nodes)
 

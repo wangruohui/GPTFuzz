@@ -217,7 +217,8 @@ class GPTFuzzer:
             self.current_query += prompt_node.num_query
             self.current_reject += prompt_node.num_reject
 
-        self.qids, self.questions = list(zip(*list(remains.items())))
+        if remains:
+            self.qids, self.questions = list(zip(*list(remains.items())))
 
         self.select_policy.update(prompt_nodes)
 

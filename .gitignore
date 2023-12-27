@@ -6,3 +6,5 @@ checkpoints/
 *.log
 __pycache__/
 .vscode/
+*.json
+*.csv

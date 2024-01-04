@@ -52,7 +52,7 @@ def main(args):
     freemem, totalmem = torch.cuda.mem_get_info()
 
     if freemem / 1024**3 > 78:
-        gpu_memory_utilization = 0.85
+        gpu_memory_utilization = 0.75
         bertdevice = 'cuda:0'
     else:
         gpu_memory_utilization = 0.95

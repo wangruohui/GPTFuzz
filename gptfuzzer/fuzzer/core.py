@@ -1,3 +1,4 @@
+import os
 import logging
 import time
 import csv
@@ -195,7 +196,18 @@ class GPTFuzzer:
 
                 for i in range(len(prompt_node.results)):
                     result = prompt_node.results[i]
+                    running_fn = f"{self.result_dir}/qid-{self.qids[i]}-running.json"
                     if result == 0:
+                        with open(running_fn, "w") as f:
+                            json.dump({
+                                "qid": self.qids[i],
+                                "question": self.questions[i],
+                                "results": result,
+                                "message": prompt_node.messages[i],
+                                "response": prompt_node.response[i],
+                                "prompt": prompt_node.prompt,
+                                "current_iteration": self.current_iteration
+                            }, f, indent=2, ensure_ascii=False)
                         continue
 
                     # jb'ed
@@ -208,7 +220,10 @@ class GPTFuzzer:
                             "message": prompt_node.messages[i],
                             "response": prompt_node.response[i],
                             "prompt": prompt_node.prompt,
+                            "current_iteration": self.current_iteration
                         }, f, indent=2, ensure_ascii=False)
+                    if os.path.exists(running_fn):
+                        os.remove(running_fn)
 
                 self.writter.writerow([prompt_node.index, prompt_node.prompt,
                                        prompt_node.response, prompt_node.parent.index, prompt_node.results])

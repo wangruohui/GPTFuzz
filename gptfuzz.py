@@ -47,6 +47,7 @@ def main(args):
 
     print(qids)
     print(questions)
+    args.max_jailbreak = min(args.max_jailbreak, len(questions))
 
     # get model placement
     freemem, totalmem = torch.cuda.mem_get_info()
@@ -90,6 +91,7 @@ def main(args):
         max_query=args.max_query,
         generate_in_batch=True,
         result_file=f'{DIR_NAME}/{args.save_dir}/qid-{min(qids)}-{max(qids)}.csv',
+        result_dir=f'{DIR_NAME}/{args.save_dir}',
     )
 
     fuzzer.run()
@@ -125,4 +127,5 @@ if __name__ == "__main__":
     add_model_args(parser)
 
     args = parser.parse_args()
+    print(args)
     main(args)
